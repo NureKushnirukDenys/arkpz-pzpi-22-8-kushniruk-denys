@@ -1,1 +1,3 @@
-# arkpz-pzpi-22-8-kushniruk-denys
+ПЗПІ-22-8
+
+Кушнірук Денис
