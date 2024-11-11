@@ -1,0 +1,457 @@
+Міністерство освіти і науки України
+Харківський національний університет радіоелектроніки
+Кафедра програмної інженерії
+
+
+
+
+
+Практична робота № 2
+з дисципліни «Аналіз та рефакторинг коду»
+
+
+
+
+
+
+
+
+Виконав:									
+ст. гр. ПЗПІ-22-8								
+Кушнірук Денис 	
+							
+Перевірив:
+ст. викладач кат. ПІ 
+Сокорчук І.П
+
+
+
+
+
+
+Харків 2024
+1.1 Тема
+      Методи рефакторингу коду програмного забезпечення.
+1.2 Мета роботи
+     Дослідити рекомендації щодо рефакторингу коду за книгою Мартін Р. Чистий код: створення і рефакторинг за допомогою AGILE, підготувати презентацію з опрацьованого матеріалу.
+1.3 Хід роботи
+     Втуп:
+Рефакторинг — процес редагування програмного коду, внутрішньої структури програмного забезпечення для полегшення розуміння коду та внесення подальших правок без зміни зовнішньої поведінки самої системи. 
+
+Обрані методи рефакторингу:
+1. PULL UP METHOD (ПІДНЯТТЯ МЕТОДУ)
+2. REMOVE SETTING METHOD (ВИДАЛЕННЯ СЕТЕРА)
+3. MOVE FIELD (ПЕРЕМІЩЕННЯ ПОЛЯ)
+
+Метод PULL UP METHOD (ПІДНЯТТЯ МЕТОДУ) 
+Потрібен коли в ієрархії класів кілька підкласів мають схожі методи, це може призвести до дублювання коду. Така ситуація робить систему складнішою для підтримки: якщо потрібно змінити поведінку методу, зміни потрібно внести в кожен підклас окремо. Це збільшує ймовірність помилок, підвищує витрати часу на рефакторинг та ускладнює тестування. Особливо це стає проблемою у великих проєктах з великою кількістю класів, де однакова логіка повторюється у різних підкласах.
+
+1 class Order {
+2   constructor(public amount: number, public taxRate: number) {}
+3 }
+4
+5 class OnlineOrder extends Order {
+ 6 calculateDiscount(): number {
+ 7    let discount = this.amount * 0.1; // 10% базова знижка
+ 8    if (this.amount > 500) {
+  9        discount += this.amount * 0.05; // додаткова знижка 5% для великих замовлень
+ 10   }
+ 11   return discount;
+ 12  }
+ 13
+ 14 calculateTotal(): number {
+ 15     const discount = this.calculateDiscount();
+ 16    const tax = this.amount * this.taxRate;
+ 17    return this.amount - discount + tax; 
+ 18  }
+ 19
+ 20 processOrder(): void {
+ 21     console.log("Processing online order");
+ 22  }
+ 23 } 
+ 24
+ 25 class InStoreOrder extends Order {
+ 26  calculateDiscount(): number {
+ 27 let discount = this.amount * 0.08; // 8% базова знижка
+ 28  if (this.amount > 300) {
+ 29       discount += this.amount * 0.03; // додаткова знижка 3% для великих замовлень
+ 30      }
+ 31    return discount;
+ 32 }
+ 33
+ 34 calculateTotal(): number {
+ 35   const discount = this.calculateDiscount();
+ 36   const tax = this.amount * this.taxRate;
+ 37  return this.amount - discount + tax; 
+ 38 }
+ 39
+ 40   processOrder(): void {
+ 41    console.log("Processing in-store order");
+ 42  }
+ 43 }
+ 44
+ 45  // Використання
+ 46 const onlineOrder = new OnlineOrder(600, 0.2);
+ 47 console.log(onlineOrder.calculateTotal()); // Розрахунок з урахуванням знижки і податку
+48
+49 const inStoreOrder = new InStoreOrder(400, 0.15);
+50 console.log(inStoreOrder.calculateTotal()); // Розрахунок з урахуванням знижки і податку
+У цьому коді методи calculateDiscount і calculateTotal мають схожі логічні частини, які можна спростити та винести в батьківський клас.
+Після рефакторингу з Pull Up Method
+Ми піднімаємо методи calculateDiscount та calculateTotal у батьківський клас Order. Щоб зберегти різницю в знижках між замовленнями, додаємо в конструктор параметри baseDiscountRate і extraDiscountThreshold для налаштування цих значень у підкласах.
+
+1 class Order {
+2    constructor(
+3        public amount: number,
+4        public taxRate: number,
+5        private baseDiscountRate: number,
+6        private extraDiscountThreshold: number,
+7        private extraDiscountRate: number
+8    ) {}
+9
+10    calculateDiscount(): number {
+11        let discount = this.amount * this.baseDiscountRate;
+12        if (this.amount > this.extraDiscountThreshold) {
+13            discount += this.amount * this.extraDiscountRate;
+14        }
+15        return discount;
+16    }
+17
+18   calculateTotal(): number {
+19        const discount = this.calculateDiscount();
+20        const tax = this.amount * this.taxRate;
+21        return this.amount - discount + tax;
+22    }
+23 }
+24
+25 class OnlineOrder extends Order {
+26    constructor(amount: number, taxRate: number) {
+27        super(amount, taxRate, 0.1, 500, 0.05); // параметри знижки для онлайн замовлення
+28    }
+29
+30    processOrder(): void {
+31        console.log("Processing online order");
+32    }
+33 }
+
+34 class InStoreOrder extends Order {
+35    constructor(amount: number, taxRate: number) {
+36        super(amount, taxRate, 0.08, 300, 0.03); // параметри знижки для замовлення в магазині
+37    }
+38
+39    processOrder(): void {
+40        console.log("Processing in-store order");
+41    }
+42 }
+43
+44 // Використання
+45 const onlineOrder = new OnlineOrder(600, 0.2);
+46 console.log(onlineOrder.calculateTotal()); // Розрахунок з урахуванням знижки і податку
+47
+48 const inStoreOrder = new InStoreOrder(400, 0.15);
+49 console.log(inStoreOrder.calculateTotal()); // Розрахунок з урахуванням знижки і податку
+
+Загальні методи calculateDiscount і calculateTotal були перенесені в батьківський клас, з параметрами, які контролюють різні ставки знижок у підкласах.
+Скорочення дублювання коду: Тепер методи calculateDiscount і calculateTotal реалізовані лише один раз.
+Гнучкість: Тепер можна налаштовувати ставки знижок у кожному підкласі, не змінюючи логіку в батьківському класі.
+
+REMOVE SETTING METHOD (ВИДАЛЕННЯ СЕТЕРА)
+У деяких випадках клас може містити методи для встановлення значень властивостей (сеттери), навіть якщо ці властивості є незмінними за своєю природою та не повинні змінюватися після створення об’єкта. Наприклад, такі властивості, як ідентифікатор замовлення або клієнта, створені під час ініціалізації об’єкта, зазвичай не повинні змінюватися протягом життєвого циклу об’єкта. Залишаючи можливість змінювати ці дані, ми ризикуємо випадково змінити значення, що може призвести до непередбачуваних помилок у роботі системи, втрати цілісності даних та ускладнення підтримки коду.
+Метод Remove Setting Method вирішує цю проблему, дозволяючи нам зробити певні властивості незмінними після їхньої ініціалізації, тим самим захищаючи дані від випадкової модифікації.
+
+1 class Order {
+2    private _orderId: string;
+3    private _customerId: string;
+4    private _createdAt: Date;
+5    private _status: string;
+6
+7    constructor(orderId: string, customerId: string, createdAt: Date, status: string) {
+8        this._orderId = orderId;
+9        this._customerId = customerId;
+10        this._createdAt = createdAt;
+11        this._status = status;
+12    }
+13
+14    // Getter та Setter для orderId
+15    get orderId(): string {
+16        return this._orderId;
+17    }
+18
+19    set orderId(newOrderId: string) {
+20        this._orderId = newOrderId;
+21    }
+22
+23    // Getter та Setter для customerId
+24    get customerId(): string {
+25        return this._customerId;
+26    }
+27
+28    set customerId(newCustomerId: string) {
+29        this._customerId = newCustomerId;
+30    }
+31
+32    // Getter та Setter для createdAt
+33    get createdAt(): Date {
+34        return this._createdAt;
+35    }
+36
+37    set createdAt(newCreatedAt: Date) {
+38        this._createdAt = newCreatedAt;
+39    }
+40
+41    // Getter та Setter для status
+42    get status(): string {
+43        return this._status;
+44    }
+45
+46    set status(newStatus: string) {
+47        this._status = newStatus;
+48    }
+49 }
+50
+51 // Використання
+52 const order = new Order("ORD123", "CUST456", new Date("2024-11-01"), "Pending");
+53 order.orderId = "ORD789"; // Можна змінити `orderId`, що небажано
+54 order.customerId = "CUST789"; // Можна змінити `customerId`, що небажано
+55 order.createdAt = new Date("2024-11-02"); // Можна змінити `createdAt`, що небажано
+56 order.status = "Shipped"; // Зміна `status` допускається
+57 console.log(order);
+
+Всі властивості (orderId, customerId, createdAt, status) можна змінювати після створення об'єкта, що могло призвести до помилок і втрати цілісності даних.
+Тепер ми видалимо методи setter для orderId, customerId та createdAt, а також зробимо ці властивості тільки для читання. Залишимо setter тільки для status, який можна змінювати після створення замовлення.
+
+1 class Order {
+2    private readonly _orderId: string;
+3    private readonly _customerId: string;
+4    private readonly _createdAt: Date;
+5    private _status: string;
+6
+7    constructor(orderId: string, customerId: string, createdAt: Date, status: string) {
+8       this._orderId = orderId;
+9        this._customerId = customerId;
+10        this._createdAt = createdAt;
+11        this._status = status;
+12    }
+13
+14    // Getter для orderId (тільки читання)
+15    get orderId(): string {
+16        return this._orderId;
+17    }
+18
+19    // Getter для customerId (тільки читання)
+20    get customerId(): string {
+21        return this._customerId;
+22    }
+23
+24    // Getter для createdAt (тільки читання)
+25    get createdAt(): Date {
+26        return this._createdAt;
+27    }
+28
+29    // Getter та Setter для status (можна змінювати)
+30    get status(): string {
+31        return this._status;
+32    }
+33
+34    set status(newStatus: string) {
+35        this._status = newStatus;
+36    }
+37 }
+38
+39 // Використання
+40 const order = new Order("ORD123", "CUST456", new Date("2024-11-01"), "Pending");
+41 // order.orderId = "ORD789"; // Помилка: `orderId` не можна змінити після створення
+42 // order.customerId = "CUST789"; // Помилка: `customerId` не можна змінити після створення
+43 // order.createdAt = new Date("2024-11-02"); // Помилка: `createdAt` не можна змінити після створення
+44 order.status = "Shipped"; // Зміна `status` допускається
+45 console.log(order);	
+
+Властивості orderId, customerId, і createdAt були зроблені тільки для читання, і можливість їх зміни була видалена. Це дозволяє змінювати лише status, що є логічним для даного класу, оскільки статус замовлення може змінюватися з часом (наприклад, з "Pending" на "Shipped").
+
+MOVE FIELD (ПЕРЕМІЩЕННЯ ПОЛЯ)
+Коли клас або модуль має занадто багато відповідальностей або коли його внутрішня структура стає складною, виникає потреба в реорганізації коду для полегшення розуміння та підтримки. Іноді поля або властивості класу розташовані в місці, де вони не логічно належать, або використовуються в інших частинах коду без відповідного контексту. Це може привести до того, що код стає заплутаним і важким для тестування та масштабування.
+Метод Move Field допомагає вирішити цю проблему, переміщаючи поля або властивості класу в більш логічне місце, де їх використання буде більш зрозумілим і зручним. Це може поліпшити структуру коду, знизити його складність і зробити взаємодію між частинами системи більш очевидною.
+
+1 class Address {
+2    private _address: string;
+3
+4    constructor(address: string) {
+5        this._address = address;
+6    }
+7
+8    get address(): string {
+9        return this._address;
+10    }
+11
+12    set address(value: string) {
+13        this._address = value;
+14    }
+15 }
+16
+17 class PhoneNumber {
+18    private _phoneNumber: string;
+19
+20    constructor(phoneNumber: string) {
+21        this._phoneNumber = phoneNumber;
+22    }
+23
+24    get phoneNumber(): string {
+25        return this._phoneNumber;
+26    }
+27
+28    set phoneNumber(value: string) {
+29        this._phoneNumber = value;
+30    }
+31 }
+32
+33 class UserProfile {
+34    private _username: string;
+35    private _age: number;
+36    private _address: Address;
+37    private _phoneNumber: PhoneNumber;
+38
+39    constructor(username: string, age: number, address: Address, phoneNumber: PhoneNumber) {
+40        this._username = username;
+41        this._age = age;
+42        this._address = address;
+43        this._phoneNumber = phoneNumber;
+44    }
+45
+46    // Getter і Setter для address
+47    get address(): string {
+48        return this._address.address;
+49    }
+50
+51    set address(value: string) {
+52        this._address.address = value;
+53    }
+54
+55    get phoneNumber(): string {
+56        return this._phoneNumber.phoneNumber;
+57    }
+58
+59    set phoneNumber(value: string) {
+60        this._phoneNumber.phoneNumber = value;
+61    }
+62 }
+63
+64 class UserService {
+65    private _userProfile: UserProfile;
+66 
+67    constructor(userProfile: UserProfile) {
+68        this._userProfile = userProfile;
+69    }
+70
+71    updateAddress(newAddress: string) {
+72       this._userProfile.address = newAddress;
+73    }
+74
+75    updatePhoneNumber(newPhoneNumber: string) {
+76       this._userProfile.phoneNumber = newPhoneNumber;
+77    }
+78 }
+79
+80 // Використання
+81 const address = new Address('123 Street');
+82 const phoneNumber = new PhoneNumber('123-456-789');
+83 const userProfile = new UserProfile('Alice', 30, address, phoneNumber);
+84 const userService = new UserService(userProfile);
+85 userService.updateAddress('456 Avenue');
+86 userService.updatePhoneNumber('987-654-321');
+
+У класі UserProfile зберігалися всі властивості, включаючи address і phoneNumber, що створювало залежність між різними аспектами користувача. Клас став більш складним і важким для розширення.
+
+1 class UserProfile {
+2    constructor(
+3        private _username: string,
+4        private _age: number,
+5        private _address: string,
+6        private _phoneNumber: string
+7    ) {}
+8
+9    // Getter і Setter для address
+10    get address(): string {
+11        return this._address;
+12    }
+13
+14    set address(value: string) {
+15        this._address = value;
+16    }
+17
+18    // Getter і Setter для phoneNumber
+19    get phoneNumber(): string {
+20        return this._phoneNumber;
+21    }
+22
+23    set phoneNumber(value: string) {
+24        this._phoneNumber = value;
+25    }
+26 }
+27
+28 class UserService {
+29    constructor(private _userProfile: UserProfile) {}
+30
+31    updateAddress(newAddress: string) {
+32        this._userProfile.address = newAddress;
+33    }
+34
+35    updatePhoneNumber(newPhoneNumber: string) {
+36        this._userProfile.phoneNumber = newPhoneNumber;
+37    }
+38 }
+39
+40 // Використання
+41 const userProfile = new UserProfile('Alice', 30, '123 Street', '123-456-789');
+42 const userService = new UserService(userProfile);
+43 userService.updateAddress('456 Avenue');
+44 userService.updatePhoneNumber('987-654-321');
+
+Інлайн ініціалізація в конструкторі: Всі властивості (_username, _age, _address, _phoneNumber) тепер ініціалізуються безпосередньо в конструкторі класу через модифікатори доступу private. Це дозволяє одночасно оголошувати і ініціалізувати властивості, зменшуючи кількість коду.
+Видалення окремих класів для Address і PhoneNumber: Замість окремих класів для адреси та номера телефону, вони тепер зберігаються просто як рядки (_address та _phoneNumber). Це дозволяє значно скоротити кількість коду.
+Збереження геттерів і сеттерів: Логіка доступу до полів не змінилася. Властивості як і раніше доступні через геттер та сеттер, що зберігає інкапсуляцію.
+
+Висновок:
+Методи рефакторингу, такі як Pull Up Method, Remove Setting Method та Move Field, допомагають покращити структуру коду, зменшити його складність та зробити його більш читабельним і підтримуваним. Вони дозволяють:
+1.	Оптимізувати код: Переміщення методів чи полів в інші класи або їх об'єднання зменшує дублювання і сприяє більш ефективному використанню існуючих ресурсів.
+2.	Полегшити підтримку та розширення: Зменшення кількості класів і методів, а також логічне розподілення відповідальностей сприяє полегшенню роботи з кодом у майбутньому. Це також дозволяє зберігати модульність і зручність внесення змін.
+3.	Підвищити інкапсуляцію: Реалізація доступу до властивостей через геттери і сеттери дозволяє більш гнучко управляти змінами полів, зберігаючи їхню цілісність.
+4.	Зробити код більш ефективним: Рефакторинг дозволяє видаляти зайві методи та поля, покращуючи продуктивність коду, зменшуючи зайві залежності та зменшуючи обсяг даних, з якими працює програма.
+Загалом, ці методи є частиною процесу покращення якості коду та забезпечують кращу підтримку проектів у довгостроковій перспективі. Вони не лише спрощують структуру, але й допомагають зберегти чистоту коду, що важливо для масштабованості та розвитку програмних систем.
+Поислання на відео: https://youtu.be/NlYGZc7UJRk
+
+Використані джерела:
+1.	Martin Fowler, "Refactoring: Improving the Design of Existing Code" – Книга, що описує основні методи рефакторингу та їхнє застосування для покращення структури коду.
+2.	"Refactoring Guru" – Інтернет-ресурс, що містить детальні описи різних методів рефакторингу, включаючи Pull Up Method, Remove Setting Method та Move Field:
+https://refactoring.guru
+3.	"Clean Code: A Handbook of Agile Software Craftsmanship" by Robert C. Martin – Книга, що допомагає розібратися в кращих практиках кодування, зокрема щодо рефакторингу та інкапсуляції.
+4.	"The Pragmatic Programmer: Your Journey to Mastery" by Andrew Hunt and David Thomas – Книга, яка містить безліч порад для покращення якості коду та рефакторингу на всіх етапах розробки.
+ 
+Додаток А
+
+ 
+Рисунок А.1 – Титульний слайд презентації
+
+ 
+Рисунок А.2 – Обрані методи рефакторингу
+
+ 
+Рисунок А.3 – PULL UP METHOD (Підняття методу)
+
+ 
+Рисунок А.4 – REMOVE SETTING METHOD (Видалення сетера)
+
+ 
+Рисунок А.5 – MOVE FIELD (Переміщення поля) до рефакторингу
+
+ 
+Рисунок А.6 – MOVE FIELD (Переміщення поля) після рефакторингу
+
+ 
+Рисунок А.7 – Висновки
+
+ 
+Рисунок А.8 – Список використаних джерел
+
+ 
+Рисунок А.9 – Подяка за увагу
+
