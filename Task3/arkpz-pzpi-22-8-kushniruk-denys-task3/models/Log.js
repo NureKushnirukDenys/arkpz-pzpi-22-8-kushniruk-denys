@@ -10,6 +10,9 @@ const logSchema = new mongoose.Schema(
     room_id: { type: mongoose.Schema.Types.ObjectId, ref: "Room" },
     action: { type: String, required: true },
     timestamp: { type: Date, required: true },
+    timeOn: { type: Number, default: 0 },
+    timeOff: { type: Number, default: 0 },
+    averageLightTime: { type: Number, default: 0 },
   },
   { versionKey: false }
 );
