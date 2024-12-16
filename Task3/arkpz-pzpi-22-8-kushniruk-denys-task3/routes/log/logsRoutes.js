@@ -22,7 +22,7 @@ const Log = require("../../models/Log");
  */
 router.get("/info", async (req, res) => {
   try {
-    const logs = await Log.find().populate("user_id room_id", "email name"); // Популюємо user_id та room_id для отримання додаткової інформації
+    const logs = await Log.find().populate("user_id room_id", "email name");
     res.json(logs);
   } catch (error) {
     res.status(500).send("Помилка при отриманні логів");
@@ -59,12 +59,32 @@ router.get("/info", async (req, res) => {
  *                 type: string
  *                 format: date-time
  *                 description: Час виконання дії.
+ *               timeOn:
+ *                 type: number
+ *                 description: Час, коли світло було увімкнено (в секундах).
+ *                 example: 3600
+ *               timeOff:
+ *                 type: number
+ *                 description: Час, коли світло було вимкнено (в секундах).
+ *                 example: 1800
+ *               averageLightTime:
+ *                 type: number
+ *                 description: Середній час освітлення кімнати (в секундах).
+ *                 example: 2700
  *     responses:
  *       200:
  *         description: Лог успішно створено.
  */
 router.post("/create", async (req, res) => {
-  const { user_id, room_id, action, timestamp } = req.body;
+  const {
+    user_id,
+    room_id,
+    action,
+    timestamp,
+    timeOn,
+    timeOff,
+    averageLightTime,
+  } = req.body;
 
   if (!user_id || !action || !timestamp) {
     return res.status(400).send("Всі поля повинні бути заповнені");
@@ -76,6 +96,9 @@ router.post("/create", async (req, res) => {
       room_id,
       action,
       timestamp,
+      timeOn,
+      timeOff,
+      averageLightTime,
     });
 
     await newLog.save();
@@ -97,6 +120,8 @@ router.post("/create", async (req, res) => {
  *         in: path
  *         required: true
  *         description: ID логу.
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Лог успішно отримано.
@@ -110,7 +135,7 @@ router.get("/info/:logId", async (req, res) => {
     const log = await Log.findById(logId).populate(
       "user_id room_id",
       "email name"
-    ); // Популюємо user_id та room_id для додаткової інформації
+    );
 
     if (!log) {
       return res.status(404).send("Лог не знайдений");
@@ -134,6 +159,8 @@ router.get("/info/:logId", async (req, res) => {
  *         in: path
  *         required: true
  *         description: ID логу.
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Лог успішно видалено.
