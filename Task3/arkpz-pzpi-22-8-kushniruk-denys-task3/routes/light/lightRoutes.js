@@ -44,12 +44,11 @@ router.get("/:id", async (req, res) => {
   try {
     const light = await Light.findById(req.params.id);
     if (!light) {
-      return res.status(404).json({ message: "Освітлення не знайдено." });
+      return res.status(404).send("Освітлення не знайдено");
     }
     res.status(200).json(light);
   } catch (error) {
-    console.error("Помилка отримання освітлення:", error);
-    res.status(500).json({ message: "Серверна помилка" });
+    res.status(500).send("Помилка при отриманні даних про освітлення");
   }
 });
 
@@ -77,18 +76,32 @@ router.put("/:id/toggle", async (req, res) => {
   try {
     const light = await Light.findById(req.params.id);
     if (!light) {
-      return res.status(404).json({ message: "Освітлення не знайдено." });
+      return res.status(404).send("Освітлення не знайдено");
     }
 
-    // Перемикаємо стан освітлення
-    light.status = !light.status;
-    light.lastActivated = Date.now(); // Оновлюємо час останнього активації
+    const currentTime = new Date();
+    const log = await Log.findOne({ room_id: light.roomId }).sort({
+      timestamp: -1,
+    });
 
+    if (log) {
+      if (light.status) {
+        log.timeOff += (currentTime - log.timestamp) / 1000;
+      } else {
+        log.timeOn += (currentTime - log.timestamp) / 1000;
+      }
+      log.averageLightTime = (log.timeOn + log.timeOff) / 2;
+      log.timestamp = currentTime;
+      await log.save();
+    }
+
+    light.status = !light.status;
+    light.lastActivated = currentTime;
     await light.save();
+
     res.status(200).json(light);
   } catch (error) {
-    console.error("Помилка зміни стану освітлення:", error);
-    res.status(500).json({ message: "Серверна помилка" });
+    res.status(500).send("Помилка при зміні стану освітлення");
   }
 });
 
@@ -172,9 +185,8 @@ router.put("/:id/motion", async (req, res) => {
       return res.status(404).json({ message: "Освітлення не знайдено." });
     }
 
-    // Якщо виявлений рух, вмикаємо освітлення
     light.motionDetected = true;
-    light.status = true; // Увімкнути освітлення
+    light.status = true;
     light.lastActivated = Date.now();
 
     await light.save();
