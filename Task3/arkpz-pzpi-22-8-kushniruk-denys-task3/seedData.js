@@ -5,7 +5,7 @@ const Room = require("./models/Room");
 // const Scenario = require("./models/Scenario");
 // const ScenarioRoom = require("./models/ScenarioRoom");
 const Log = require("./models/Log");
-const Light = require("./models/Light"); // Додано для освітлення
+const Light = require("./models/Light");
 
 async function seedData() {
   try {
@@ -86,12 +86,18 @@ async function seedData() {
         room_id: room1._id,
         action: "Увімкнено освітлення",
         timestamp: new Date(),
+        timeOn: 3600,
+        timeOff: 1800,
+        averageLightTime: 2700,
       },
       {
         user_id: user1._id,
         room_id: room2._id,
         action: "Вимкнено освітлення",
         timestamp: new Date(),
+        timeOn: 1800,
+        timeOff: 3600,
+        averageLightTime: 2700,
       },
     ]);
 
