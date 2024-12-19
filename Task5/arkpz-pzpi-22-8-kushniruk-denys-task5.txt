@@ -77,15 +77,15 @@ node app.js
 3  #include <LiquidCrystal_I2C.h>
 4  
 5  // WiFi налаштування
-6  const char* ssid = "Wokwi-GUEST";
-7  const char* password = "";
+6  char* ssid = "Wokwi-GUEST";
+7  char* password = "";
 8  
 9  // MQTT налаштування
-10 const char* mqtt_server = "broker.emqx.io";
-11 const int mqtt_port = 1883;
-12 const char* mqtt_user = "";
-13 const char* mqtt_password = "";
-14 const char* mqtt_topic = "light/status";
+10  char* mqtt_server = "broker.emqx.io";
+11  int mqtt_port = 1883;
+12  char* mqtt_user = "";
+13  char* mqtt_password = "";
+14  char* mqtt_topic = "light/status";
 15 
 16 WiFiClient espClient;
 17 PubSubClient client(espClient);
