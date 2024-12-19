@@ -1,0 +1,189 @@
+Міністерство освіти і науки України
+Харківський національний університет радіоелектроніки
+Кафедра програмної інженерії
+
+
+
+
+
+Лабораторна робота № 4
+з дисципліни «Аналіз та рефакторинг коду»
+
+
+
+
+
+
+
+
+Виконав:									Перевірив:
+ст. гр. ПЗПІ-22-8								ст. викладач. 
+Кушнірук Денис 								Сокорчук І.П
+
+
+
+
+
+
+
+
+
+Харків 2024
+
+1 Мета роботи: 
+Розробити програмне забезпечення для IoT або SmartDevice пристрою.
+
+2 Хід роботи:
+
+Система управління освітленням реалізує автоматичне керування світлом на основі вимірювання відстані за допомогою ультразвукового датчика. Якщо відстань до об'єкта менша за 200 см, світло вмикається, інакше вимикається. Виміряні дані передаються до мікроконтролера ESP32, який обробляє інформацію та оновлює стан освітлення. Для інформування користувача стан системи та відстань відображаються на LCD-дисплеї. Крім того, дані про стан освітлення та відстань автоматично передаються на сервер через MQTT-протокол, що забезпечує інтеграцію з IoT-інфраструктурою. Для доступу до системи користувач проходить авторизацію, що забезпечує захист даних. Уся логіка роботи системи підтримує централізоване керування та можливість оновлення даних у реальному часі.
+
+ 
+Рис. 1 - UML діаграма прецедентів ІоТ клієнта
+Процес роботи системи складається з кількох ключових етапів. Спочатку відбувається ініціалізація пристрою, після чого він намагається підключитися до Wi-Fi мережі. У разі успішного з’єднання здійснюється підключення до MQTT-брокера. У випадку помилки підключення пристрій продовжує спроби встановити з’єднання. Після успішного з'єднання дані з ультразвукового датчика зчитуються для визначення відстані, на основі якої відбувається розрахунок і, за потреби, перемикання стану світлодіода. Дані також відображаються на LCD-дисплеї. У наступному етапі створюється JSON-файл з інформацією про стан системи, після чого дані відправляються на сервер для подальшого використання чи аналізу.
+
+ 
+Рис. 2 - UML діаграма діяльності ІоТ клієнта
+Система побудована на базі мікроконтролера ESP32, до якого підключено ультразвуковий датчик HC-SR04 для вимірювання відстані, LED для індикації стану освітлення, та LCD-дисплей для відображення даних. Ультразвуковий датчик підключений до пінів TRIG і ECHO мікроконтролера, що дозволяє генерувати імпульс і вимірювати час відбиття сигналу для обчислення відстані. LCD-дисплей підключений через I2C-інтерфейс для економії виводів ESP32, забезпечуючи зручне відображення інформації. LED підключений до піну через резистор, що обмежує струм, запобігаючи його пошкодженню. Така схема забезпечує ефективне та зручне управління освітленням залежно від даних, отриманих від датчика.
+
+ 
+Рис. 3 - Схема IoT пристрою
+
+Висновок:
+Під час лабораторної роботи було розроблено програмне забезпечення для IoT пристрою, та бізнес логіка для нього.
+
+Посилання на відео: https://youtu.be/IBCoNWdZPDw
+ 
+Додаток А
+
+1   #include <WiFi.h>
+2   #include <PubSubClient.h>
+3   #include <LiquidCrystal_I2C.h>
+4   
+5   // WiFi налаштування
+6   const char* ssid = "Wokwi-GUEST";
+7   const char* password = "";
+8   
+9   // MQTT налаштування
+10  const char* mqtt_server = "broker.emqx.io";
+11  const int mqtt_port = 1883;
+12  const char* mqtt_user = "";
+13  const char* mqtt_password = "";
+14  const char* mqtt_topic = "light/status";
+15  
+16  WiFiClient espClient;
+17  PubSubClient client(espClient);
+18  
+19  LiquidCrystal_I2C lcd(0x27, 16, 2);
+20  
+21  #define TRIG_PIN 18
+22  #define ECHO_PIN 17
+23  #define LED_PIN 4
+24  
+25  float duration_us, distance_cm;
+26  boolean light_status = false;
+27  const char* iotDeviceId = "iot67890"; // Додано ID IoT пристрою
+28  
+29  void setup_wifi() {
+30    delay(10);
+31    lcd.setCursor(0, 0);
+32    lcd.print("Connecting to WiFi");
+33    WiFi.begin(ssid, password);
+34  
+35    while (WiFi.status() != WL_CONNECTED) {
+36      delay(500);
+37      Serial.print(".");
+38    }
+39  
+40    lcd.clear();
+41    lcd.print("WiFi Connected");
+42    delay(100);
+43    lcd.clear();
+44  }
+45  
+46  void reconnect() {
+47    while (!client.connected()) {
+48      lcd.setCursor(0, 0);
+49      lcd.print("Connecting MQTT");
+50      if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
+51        lcd.clear();
+52        lcd.print("MQTT Connected");
+53        delay(1000);
+54        lcd.clear();
+55      } else {
+56        delay(500);
+57      }
+58    }
+59  }
+60  
+61  void setup() {
+62    lcd.init();
+63    lcd.backlight();
+64    pinMode(TRIG_PIN, OUTPUT);
+65    pinMode(ECHO_PIN, INPUT);
+66    pinMode(LED_PIN, OUTPUT);
+67    Serial.begin(9600);
+68  
+69    setup_wifi();
+70    client.setServer(mqtt_server, mqtt_port);
+71  }
+72  
+73  void loop() {
+74    if (!client.connected()) {
+75      reconnect();
+76    }
+77    client.loop();
+78  
+79    // Генеруємо імпульс для ультразвукового датчика
+80    digitalWrite(TRIG_PIN, HIGH);
+81    delayMicroseconds(10);
+82    digitalWrite(TRIG_PIN, LOW);
+83  
+84    // Вимірюємо час імпульсу
+85    duration_us = pulseIn(ECHO_PIN, HIGH);
+86  
+87    // Розраховуємо відстань
+88    distance_cm = 0.017 * duration_us;
+89  
+90    // Оновлюємо LCD
+91    lcd.clear();
+92    lcd.setCursor(0, 0);
+93    lcd.print("Distance: ");
+94    lcd.print(distance_cm);
+95    lcd.print(" cm");
+96  
+97    // Контроль LED і формування повідомлення
+98    boolean new_light_status = distance_cm < 200;
+99    if (new_light_status != light_status || millis() % 500 == 0) {
+100     light_status = new_light_status;
+101     digitalWrite(LED_PIN, light_status ? HIGH : LOW);
+102 
+103     // Формуємо JSON-повідомлення
+104     String message = "{\"status\":" + String(light_status ? "true" : "false") + 
+105                      ",\"distance\":" + String(distance_cm, 2) + 
+106                      ",\"iotDeviceId\":\"" + iotDeviceId + "\"}"; 
+107     client.publish(mqtt_topic, message.c_str(), false);
+108 
+109     // Вивід у Serial Monitor
+110     Serial.println("MQTT Message: " + message);
+111   }
+112 
+113   delay(500);
+114 }
+
+Бізнес логіки IoT клієнта  (математичної обробки повʼязаних із предметною областю даних)
+1 const currentTime = new Date();
+2    const log = await Log.findOne({ room_id: light.roomId }).sort({
+3      timestamp: -1,
+4    });
+5
+6   if (log) {
+7     if (light.status) {
+8        log.timeOff += (currentTime - log.timestamp) / 1000;
+9      } else {
+10        log.timeOn += (currentTime - log.timestamp) / 1000;
+11      }
+12      log.averageLightTime = (log.timeOn + log.timeOff) / 2;
+13      log.timestamp = currentTime;
+14      await log.save();
+15    }
+
