@@ -1,0 +1,210 @@
+Міністерство освіти і науки України
+Харківський національний університет радіоелектроніки
+Кафедра програмної інженерії
+
+
+
+
+
+Лабораторна робота № 5
+з дисципліни «Аналіз та рефакторинг коду»
+
+
+
+
+
+
+
+
+Виконав:									Перевірив:
+ст. гр. ПЗПІ-22-8								ст. викладач.
+Кушнірук Денис 								Сокорчук І.П
+
+
+
+
+
+
+
+
+
+Харків 2024
+
+1 Мета роботи: 
+Розгорнути реалізовану програмну систему, перевірити та налаштувати роботу розгорнутої програмної системи. 
+
+2 Хід роботи:
+
+2.1 Опис розгорнутої програмної системи
+
+Для розгортання реалізованої програмної системи, яка включає сервер на Node.js з використанням Express, MongoDB для зберігання даних, MQTT для обміну повідомленнями та ESP32 для збору даних, виконайте наступні кроки:
+
+Встановлення необхідного програмного забезпечення
+- Node.js: Завантажте та встановіть Node.js.
+- MongoDB: Завантажте та встановіть MongoDB.
+- MQTT Broker: Використовуйте публічний брокер, наприклад, broker.emqx.io, або встановіть локальний брокер.
+
+Клонування репозиторію
+Клонуйте репозиторій з вашим проектом:
+git clone <URL_репозиторію>
+cd <назва_папки_репозиторію>
+
+Встановлення залежностей
+Встановіть необхідні залежності для Node.js проекту:
+npm install
+
+Налаштування змінних середовища
+Створіть файл .env у кореневій директорії проекту та додайте наступні змінні середовища:
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/your_database_name
+JWT_SECRET=your_jwt_secret
+MQTT_URL=mqtt://broker.emqx.io
+MQTT_TOPIC=light/status
+
+Запуск MongoDB
+Запустіть MongoDB сервер:
+mongod --dbpath <шлях_до_папки_з_даними>
+
+Запуск сервера Node.js
+Запустіть сервер Node.js:
+node app.js
+
+Налаштування та запуск ESP32
+Завантажте код на ESP32 за допомогою Arduino IDE або іншого інструменту для програмування ESP32. Переконайтеся, що ви налаштували правильні параметри WiFi та MQTT у коді:
+
+1  #include <WiFi.h>
+2  #include <PubSubClient.h>
+3  #include <LiquidCrystal_I2C.h>
+4  
+5  // WiFi налаштування
+6  const char* ssid = "Wokwi-GUEST";
+7  const char* password = "";
+8  
+9  // MQTT налаштування
+10 const char* mqtt_server = "broker.emqx.io";
+11 const int mqtt_port = 1883;
+12 const char* mqtt_user = "";
+13 const char* mqtt_password = "";
+14 const char* mqtt_topic = "light/status";
+15 
+16 WiFiClient espClient;
+17 PubSubClient client(espClient);
+18 
+19 LiquidCrystal_I2C lcd(0x27, 16, 2);
+20 
+21 #define TRIG_PIN 18
+22 #define ECHO_PIN 17
+23 #define LED_PIN 4
+24 
+25 float duration_us, distance_cm;
+26 boolean light_status = false;
+27 const char* iotDeviceId = "iot12345"; // Додано ID IoT пристрою
+28 
+29 void setup_wifi() {
+30   delay(10);
+31   lcd.setCursor(0, 0);
+32   lcd.print("Connecting to WiFi");
+33   WiFi.begin(ssid, password);
+34 
+35   while (WiFi.status() != WL_CONNECTED) {
+36     delay(500);
+37     Serial.print(".");
+38   }
+39 
+40   lcd.clear();
+41   lcd.print("WiFi Connected");
+42   delay(100);
+43   lcd.clear();
+44 }
+45 
+46 void reconnect() {
+47   while (!client.connected()) {
+48     lcd.setCursor(0, 0);
+49     lcd.print("Connecting MQTT");
+50     if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
+51       lcd.clear();
+52       lcd.print("MQTT Connected");
+53       delay(1000);
+54       lcd.clear();
+55     } else {
+56       delay(500);
+57     }
+58   }
+59 }
+60 
+61 void setup() {
+62   lcd.init();
+63   lcd.backlight();
+64   pinMode(TRIG_PIN, OUTPUT);
+65   pinMode(ECHO_PIN, INPUT);
+66   pinMode(LED_PIN, OUTPUT);
+67   Serial.begin(9600);
+68 
+69   setup_wifi();
+70   client.setServer(mqtt_server, mqtt_port);
+71 }
+72 
+73 void loop() {
+74   if (!client.connected()) {
+75     reconnect();
+76   }
+77   client.loop();
+78 
+79   // Генеруємо імпульс для ультразвукового датчика
+80   digitalWrite(TRIG_PIN, HIGH);
+81   delayMicroseconds(10);
+82   digitalWrite(TRIG_PIN, LOW);
+83 
+84   // Вимірюємо час імпульсу
+85   duration_us = pulseIn(ECHO_PIN, HIGH);
+86 
+87   // Розраховуємо відстань
+88   distance_cm = 0.017 * duration_us;
+89 
+90   // Оновлюємо LCD
+91   lcd.clear();
+92   lcd.setCursor(0, 0);
+93   lcd.print("Distance: ");
+94   lcd.print(distance_cm);
+95   lcd.print(" cm");
+96 
+97   // Контроль LED і формування повідомлення
+98   boolean new_light_status = distance_cm < 200;
+99   if (new_light_status != light_status || millis() % 500 == 0) {
+100     light_status = new_light_status;
+101     digitalWrite(LED_PIN, light_status ? HIGH : LOW);
+102 
+103     // Формуємо JSON-повідомлення
+104     String message = "{\"status\":" + String(light_status ? "true" : "false") + 
+105                      ",\"distance\":" + String(distance_cm, 2) + 
+106                      ",\"iotDeviceId\":\"" + iotDeviceId + "\"}"; // Додано поле iotDeviceId
+107     client.publish(mqtt_topic, message.c_str(), false);
+108 
+109     // Вивід у Serial Monitor
+110     Serial.println("MQTT Message: " + message);
+111   }
+112 
+113   delay(500); // Зменшення затримки для пришвидшення циклу
+114 }
+
+Перевірка роботи
+- Відкрийте браузер і перейдіть за адресою http://localhost:5000/api-docs, щоб переглянути документацію API, згенеровану за допомогою Swagger.
+- Перевірте, чи сервер отримує повідомлення від ESP32 та оновлює дані в MongoDB.
+- Переконайтеся, що всі маршрути API працюють належним чином.
+Ці кроки допоможуть вам розгорнути та налаштувати вашу програмну систему.
+
+Резервне копіювання даних
+Для забезпечення безпеки та збереження даних важливо налаштувати резервне копіювання бази даних. Завдяки використанню MongoDB Atlas, можна скористатися вбудованими функціями резервного копіювання.
+1.	Автоматичне резервне копіювання:
+- MongoDB Atlas автоматично створює резервні копії ваших даних. Ви можете налаштувати частоту та зберігання резервних копій у розділі "Backup" вашого кластера.
+- Перейдіть до вашого кластера в MongoDB Atlas.
+- Виберіть "Backup" у меню зліва.
+- Налаштуйте частоту резервного копіювання та зберігання резервних копій відповідно до ваших потреб.
+2.	Відновлення даних:
+- У розділі "Backup" ви можете переглянути список доступних резервних копій.
+- Виберіть резервну копію, яку ви хочете відновити, і натисніть "Restore".
+
+Висновок: 
+Під час виконання лабораторної роботи було розгорнуто програмну систему та продемонструвано її роботу.
+
+Посилання на відео: https://youtu.be/mreJ1QTxBJk
